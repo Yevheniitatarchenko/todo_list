@@ -17,6 +17,10 @@ const innerValue = ref(null);
 watch(innerValue, (value) => {
   emit("update:modelValue", value);
 });
+
+watch(modelValue, (value) => {
+  if (value !== innerValue.value) innerValue.value = value;
+});
 </script>
 
 <template>

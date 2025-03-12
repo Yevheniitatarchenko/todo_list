@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref } from "vue";
+import { reactive, ref, inject } from "vue";
 import { useRouter } from "vue-router";
 import { useVuelidate } from "@vuelidate/core";
 import { required, alpha, helpers } from "@vuelidate/validators";
@@ -7,13 +7,14 @@ import api from "../utils/axios";
 
 import Input from "../components/Input.vue";
 
+const notify = inject("notify");
+
 const router = useRouter();
 
 const form = reactive({
   username: "",
   phone: "",
 });
-const errorLogin = ref(false);
 
 const onlySymbolsAndNumbers = helpers.regex(
   /^[0-9.'\-\/«».,():’— №!";+=*\sx]+$/
@@ -40,9 +41,10 @@ const login = async () => {
       `/users?username=${form.username}&phone=${form.phone}`
     );
     if (resUser.data.length) {
+      notify("Success login!", "success");
       router.push(`/user/${resUser.data[0].id}`);
     } else {
-      errorLogin.value = true;
+      notify("Error login!", "error");
     }
   }
 };
@@ -67,12 +69,11 @@ const login = async () => {
         :width="'auto'"
       />
       <button
-        class="mt-4 w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition"
+        class="mt-4 w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition cursor-pointer"
         @click.prevent="login"
       >
         Login
       </button>
-      <p class="text-red-500" v-if="errorLogin">Error login</p>
     </form>
   </div>
 </template>

@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, watch, reactive, ref } from "vue";
+import { onMounted, watch, reactive, ref, inject } from "vue";
 import { useRoute } from "vue-router";
 import { useVuelidate } from "@vuelidate/core";
 import { required, numeric } from "@vuelidate/validators";
@@ -9,6 +9,7 @@ import debounce from "lodash.debounce";
 import Select from "../components/Select.vue";
 import Input from "../components/Input.vue";
 
+const notify = inject("notify");
 const route = useRoute();
 
 const user = ref({});
@@ -17,6 +18,7 @@ const todos = ref([]);
 const formCreateTodo = reactive({
   userId: "",
   title: "",
+  isFavorite: false,
 });
 const rules = {
   userId: {
@@ -49,7 +51,13 @@ onMounted(async () => {
   user.value = resUsers.data;
 
   const resTodos = await api.get("/todos");
-  todos.value = resTodos.data;
+  const modifiedResTodos = resTodos.data.map((item) => {
+    return {
+      ...item,
+      isFavorite: false,
+    };
+  });
+  todos.value = modifiedResTodos;
 
   const usersId = resTodos.data.map((item) => item.userId);
   const uniqueUsersId = [...new Set(usersId)];
@@ -57,17 +65,6 @@ onMounted(async () => {
     idUsersFromTodos.value.push({ value: item, label: item })
   );
 });
-
-const setToFavorites = (id) => {
-  const favorites = localStorage.getItem("favorites");
-  if (favorites) {
-    localStorage.setItem("favorites", favorites.concat(",", id.toString()));
-    statusItems[3].value = localStorage.getItem("favorites");
-  } else {
-    localStorage.setItem("favorites", id.toString());
-    statusItems[3].value = localStorage.getItem("favorites");
-  }
-};
 
 watch(formSortBy, (value) => {
   filterSortBy(value);
@@ -96,8 +93,41 @@ const createTodo = async () => {
   v$.value.$touch();
   if (!v$.value.$invalid) {
     const res = await api.post("/todos", formCreateTodo);
-    todos.value.push(res.data);
+    todos.value.unshift(res.data);
+    formCreateTodo.userId = "";
+    formCreateTodo.title = "";
+    v$.value.$reset();
+    notify("Success create todo!", "success");
   }
+};
+
+const setToFavorites = (id) => {
+  const favorites = localStorage.getItem("favorites");
+  if (favorites) {
+    localStorage.setItem("favorites", favorites.concat(",", id.toString()));
+    statusItems[3].value = localStorage.getItem("favorites");
+  } else {
+    localStorage.setItem("favorites", id.toString());
+    statusItems[3].value = localStorage.getItem("favorites");
+  }
+  const getCurrentTodo = todos.value.find((item) => item.id === id);
+  getCurrentTodo.isFavorite = true;
+
+  notify("Success add todo to favorites!", "success");
+};
+
+const removeFromFavorites = (id) => {
+  const favorites = localStorage.getItem("favorites");
+  const filteredFavorites = favorites
+    .split(",")
+    .filter((fvId) => fvId !== id.toString())
+    .join(",");
+  localStorage.setItem("favorites", filteredFavorites);
+
+  const getCurrentTodo = todos.value.find((item) => item.id === id);
+  getCurrentTodo.isFavorite = false;
+
+  notify("Success remove todo from favorites!", "error");
 };
 </script>
 
@@ -152,7 +182,7 @@ const createTodo = async () => {
               />
             </form>
             <button
-              class="w-40 bg-blue-600 text-white p-1 rounded-lg hover:bg-blue-700 transition ml-auto"
+              class="w-40 bg-blue-600 text-white p-1 rounded-lg hover:bg-blue-700 transition ml-auto cursor-pointer"
               @click.prevent="createTodo"
             >
               Create todo
@@ -170,7 +200,7 @@ const createTodo = async () => {
             <div class="flex flex-col gap-1 p-1.5 shadow-sm overflow-y-scroll">
               <div
                 role="button"
-                class="text-slate-800 flex w-full items-center justify-between rounded-md p-3 transition-all hover:bg-slate-100 focus:bg-slate-100 active:bg-slate-100"
+                class="flex w-full items-center justify-between min-h-14 text-slate-800 rounded-md px-3 transition-all hover:bg-slate-100 focus:bg-slate-100 active:bg-slate-100"
                 v-for="(todo, key) in todos"
                 :key="key"
               >
@@ -178,10 +208,18 @@ const createTodo = async () => {
                   {{ todo.title }}
                 </p>
                 <button
-                  class="min-w-40 w-40 bg-blue-600 text-white p-1 rounded-lg hover:bg-blue-700 transition"
+                  class="min-w-40 w-40 bg-blue-600 text-white p-1 rounded-lg hover:bg-blue-700 transition cursor-pointer"
+                  v-if="!todo.isFavorite"
                   @click="setToFavorites(todo.id)"
                 >
                   Add to favorites
+                </button>
+                <button
+                  class="min-w-40 w-40 bg-red-600 text-white p-1 rounded-lg hover:bg-red-700 transition cursor-pointer"
+                  v-if="todo.isFavorite"
+                  @click="removeFromFavorites(todo.id)"
+                >
+                  Remove
                 </button>
               </div>
             </div>
