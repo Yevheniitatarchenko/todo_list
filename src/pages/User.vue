@@ -14,6 +14,7 @@ const route = useRoute();
 
 const user = ref({});
 const todos = ref([]);
+const newTodos = ref([]);
 
 const formCreateTodo = reactive({
   userId: "",
@@ -57,7 +58,20 @@ onMounted(async () => {
       isFavorite: false,
     };
   });
-  todos.value = modifiedResTodos;
+  const resNewTodos = JSON.parse(localStorage.getItem("newTodos")) || [];
+  newTodos.value = resNewTodos;
+  const listFavoritesTodoId = localStorage.getItem("favorites");
+  const newModifiedResTodos = [...resNewTodos, ...modifiedResTodos];
+
+  if (listFavoritesTodoId) {
+    for (let id of listFavoritesTodoId.split(",")) {
+      const todo = newModifiedResTodos.find(
+        (todo) => Number(todo.id) === Number(id)
+      );
+      if (todo) todo.isFavorite = true;
+    }
+  }
+  todos.value = newModifiedResTodos;
 
   const usersId = resTodos.data.map((item) => item.userId);
   const uniqueUsersId = [...new Set(usersId)];
@@ -93,9 +107,17 @@ const createTodo = async () => {
   v$.value.$touch();
   if (!v$.value.$invalid) {
     const res = await api.post("/todos", formCreateTodo);
-    todos.value.unshift(res.data);
+    const newTodo = {
+      ...res.data,
+      id: formCreateTodo.userId,
+    };
+
+    todos.value.unshift(newTodo);
+    newTodos.value.unshift(newTodo);
     formCreateTodo.userId = "";
     formCreateTodo.title = "";
+    localStorage.setItem("newTodos", JSON.stringify(newTodos.value));
+
     v$.value.$reset();
     notify("Success create todo!", "success");
   }
@@ -126,6 +148,10 @@ const removeFromFavorites = (id) => {
 
   const getCurrentTodo = todos.value.find((item) => item.id === id);
   getCurrentTodo.isFavorite = false;
+
+  const newTodo = newTodos.value.find((item) => item.id === id);
+  if (newTodo) newTodo.isFavorite = false;
+  localStorage.setItem("newTodos", JSON.stringify(newTodos.value));
 
   notify("Success remove todo from favorites!", "error");
 };
